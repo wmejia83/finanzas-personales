@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/menu_resumen"
+        android:title="Resumen"
+        />
+
+    <item
+        android:id="@+id/menu_limpiar"
+        android:title="Limpiar"
+        />
+
+    <item
+        android:id="@+id/menu_salir"
+        android:title="Salir"
+        />
+
+    <item
+        android:id="@+id/menu_acerca"
+        android:title="Acerca de"
+        />
+</menu>
