@@ -47,4 +47,6 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     implementation(libs.glide)
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
 }

@@ -7,4 +7,7 @@
     <color name="onPrimary">#FFFFFF</color>
     <color name="secondary">#C62828</color>    <!-- rojo gasto -->
     <color name="background">#F5F5F5</color>
+
+    <color name="colorIngreso">#81C784</color>
+    <color name="colorGasto">#E57373</color>
 </resources>

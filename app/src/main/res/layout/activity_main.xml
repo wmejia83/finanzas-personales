@@ -21,30 +21,6 @@
         android:elevation="4dp"
         />
 
-    <ImageView
-        android:id="@+id/img_banner"
-        android:layout_width="0dp"
-        android:layout_height="200dp"
-        android:src="@drawable/background"
-        android:scaleType="centerCrop"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        />
-
-    <ImageView
-        android:id="@+id/img_poster"
-        android:layout_width="100dp"
-        android:layout_height="150dp"
-        android:src="@drawable/vertical"
-        android:scaleType="centerCrop"
-        app:layout_constraintTop_toBottomOf="@id/img_banner"
-        app:layout_constraintBottom_toBottomOf="@id/img_banner"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginStart="16dp"
-        android:elevation="4dp"
-
-        />
 
     <TextView
         android:id="@+id/txt_titulo"
@@ -54,8 +30,8 @@
         android:layout_marginStart="16dp"
         android:textSize="20sp"
         android:textStyle="bold"
-        app:layout_constraintTop_toBottomOf="@id/img_banner"
-        app:layout_constraintStart_toEndOf="@id/img_poster"/>
+        app:layout_constraintTop_toBottomOf="@id/toolbar"
+        app:layout_constraintStart_toStartOf="parent"/>
 
 
     <TextView
@@ -71,6 +47,15 @@
 
         />
 
+    <com.github.mikephil.charting.charts.PieChart
+        android:id="@+id/pieChart"
+        android:layout_width="0dp"
+        android:layout_height="220dp"
+        app:layout_constraintTop_toBottomOf="@+id/txt_total_balance"
+        app:layout_constraintStart_toStartOf="@+id/txt_total_balance"
+        app:layout_constraintEnd_toEndOf="parent"
+        />
+
 
     <Button
         android:id="@+id/btn_gastos"
@@ -78,8 +63,8 @@
         android:layout_height="wrap_content"
         android:backgroundTint="#F44336"
         android:text="Gastos"
-        app:layout_constraintTop_toBottomOf="@id/img_poster"
-        app:layout_constraintStart_toStartOf="@id/img_poster"
+        app:layout_constraintTop_toBottomOf="@+id/pieChart"
+        app:layout_constraintStart_toStartOf="@+id/pieChart"
         app:layout_constraintEnd_toStartOf="@id/btn_ingresos"
         android:layout_marginEnd="8dp"
         android:layout_marginTop="8dp"
@@ -106,7 +91,7 @@
         app:layout_constraintTop_toBottomOf="@id/btn_gastos"
         app:layout_constraintStart_toStartOf="@id/btn_gastos"
         app:layout_constraintEnd_toEndOf="@id/btn_ingresos"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/bottomNav"
         android:layout_marginBottom="16dp"
         >
 
@@ -123,7 +108,35 @@
     </ScrollView>
 
 
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNav"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:background="@color/primary"
+        app:itemIconTint="@color/onPrimary"
+        app:itemTextColor="@color/onPrimary"
+        app:itemBackground="@null"
+        app:itemRippleColor="@android:color/transparent"
+        app:itemActiveIndicatorStyle="@null"
+        app:menu="@menu/menu_bottom"
+        />
 
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_add"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/bottomNav"
+        app:layout_constraintBottom_toTopOf="@id/bottomNav"
+        app:srcCompat="@android:drawable/ic_input_add"
+        android:backgroundTint="@color/colorGasto"
+        android:tint="@color/primary"
+        />
 
 
 
