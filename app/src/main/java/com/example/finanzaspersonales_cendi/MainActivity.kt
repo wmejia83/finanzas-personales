@@ -17,6 +17,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.ToolbarWidgetWrapper
 import androidx.core.view.ViewCompat
@@ -26,6 +27,7 @@ import com.github.mikephil.charting.charts.PieChart
 import com.github.mikephil.charting.data.PieData
 import com.github.mikephil.charting.data.PieDataSet
 import com.github.mikephil.charting.data.PieEntry
+import kotlin.toString
 
 // =====================================================
 // [1] MODELO DE DATOS (Data Class)
@@ -78,6 +80,9 @@ class MainActivity : AppCompatActivity() {
         Finanza("Servicios públicos", 500000.00, "02 Feb 2026"),
 
     )
+
+
+    private var tipoActual = "Ingreso"
 
 
 
@@ -164,8 +169,40 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Mostrando Gastos", Toast.LENGTH_SHORT).show()
         }
 
+        val bottomNav = findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.bottomNav)
+
+        bottomNav.setOnItemSelectedListener { item ->
+            when (item.itemId){
+                R.id.nav_ingresos -> {
+                    tipoActual = "Ingreso"
+                    mostrarIngresos()
+                    true
+                }
+
+                R.id.nav_gastos -> {
+                    tipoActual = "Gasto"
+                    mostrarGastos()
+                    true
+                }
+
+                else -> false
+
+            }
+
+        }
+
+
+        findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.fab_add).setOnClickListener {
+            configurarDialogRegistroAvanzado()
+        }
+
+
 
     }//cierra OnCreate
+
+
+
+
 
 
 
@@ -358,7 +395,6 @@ class MainActivity : AppCompatActivity() {
 
     }//cierra mostrar Gastos
 
-
     // =====================================================
     // [11] GRÁFICO: Actualizar PieChart
     //
@@ -382,4 +418,68 @@ class MainActivity : AppCompatActivity() {
         pieChart.data = PieData(dataSet)
         pieChart.invalidate()
     }
+
+
+    private fun configurarDialogRegistroAvanzado(){
+        val view = layoutInflater.inflate(R.layout.dialog_registro, null)
+        val etConcepto = view.findViewById<android.widget.EditText>(R.id.etConcepto)
+        val etMonto = view.findViewById<android.widget.EditText>(R.id.etMonto)
+
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Nuevo $tipoActual")
+            .setView(view)
+            .setPositiveButton("Guardar",null)
+            .setNegativeButton("Cancelar",null)
+            .create()
+
+        // Listener personalizado para validar antes de cerrar el diálogo
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+
+                //limpiamos-El "Reinicio" del estado
+                etConcepto.error = null
+                etMonto.error = null
+
+                //Obtiene el texto: -obtenemos los valores y limpiamos
+                val concepto = etConcepto.text.toString().trim()
+                val monto = etMonto.text.toString().trim().toDoubleOrNull()
+
+                // Validaciones de entrada
+                if (concepto.isEmpty()) {
+                    etConcepto.error = "Requerido"  //muestra la alerta
+                    etConcepto.requestFocus()   //enfoca el edith text
+                    return@setOnClickListener
+                }
+
+                if (monto == null || monto <= 0.0) {
+                    etMonto.error = "Monto debe ser > 0"
+                    etMonto.requestFocus()
+                    return@setOnClickListener
+                }
+
+                // Generación de fecha automática
+                val fechaActual = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
+                    .format(java.util.Date())
+
+                val nuevo = Finanza(concepto, monto, fechaActual)
+
+                // Guardar según el tipo actual seleccionado
+                if (tipoActual == "Ingreso") {
+                    listaIngresos.add(nuevo)
+                    mostrarIngresos()
+                } else {
+                    listaGastos.add(nuevo)
+                    mostrarGastos()
+                }
+
+                calcularTotales()
+                dialog.dismiss() // Cerrar manualmente si todo es correcto
+            }
+        }
+        dialog.show()
+
+    }
+
+
+
 }
