@@ -1,20 +1,39 @@
-<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:padding="16dp"
     android:orientation="vertical"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:gravity="center_horizontal"> <EditText
+    android:id="@+id/etConcepto"
+    android:hint="Concepto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"/>
 
-    <EditText
-        android:id="@+id/etConcepto"
-        android:hint="Concepto"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
+
     <EditText
         android:id="@+id/etMonto"
         android:hint="Monto"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:inputType="numberDecimal"/>
+
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Presiona para capturar recibo"
+        android:textSize="12sp"
+        android:textColor="#757575"
+        android:layout_marginTop="12dp"/>
+
+
+    <ImageButton
+        android:id="@+id/btn_camara"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:src="@android:drawable/ic_menu_camera"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Tomar foto"/>
+
 
 </LinearLayout>

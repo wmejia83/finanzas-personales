@@ -82,30 +82,17 @@
         app:layout_constraintEnd_toEndOf="parent"
         />
 
-    <ScrollView
+
+    <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/fragment_container"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="16dp"
-        android:orientation="vertical"
-        android:visibility="visible"
         app:layout_constraintTop_toBottomOf="@id/btn_gastos"
         app:layout_constraintStart_toStartOf="@id/btn_gastos"
         app:layout_constraintEnd_toEndOf="@id/btn_ingresos"
         app:layout_constraintBottom_toTopOf="@id/bottomNav"
-        android:layout_marginBottom="16dp"
-        >
+        />
 
-        <LinearLayout
-            android:id="@+id/container_item"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingBottom="16dp"
-            >
-
-        </LinearLayout>
-
-    </ScrollView>
 
 
     <com.google.android.material.bottomnavigation.BottomNavigationView

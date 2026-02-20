@@ -8,7 +8,10 @@
 package com.example.finanzaspersonales_cendi
 
 import android.graphics.Color
+import android.hardware.Sensor
+import android.hardware.SensorEvent
 import android.os.Bundle
+import android.os.UserManager
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.Button
@@ -56,7 +59,25 @@ data class Finanza(
 // - Calcula totales
 // - Pinta el gráfico
 // =====================================================
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), android.hardware.SensorEventListener {
+
+    //declarar una variable para toda la clase
+    private lateinit var sensorManager: android.hardware.SensorManager
+
+    private var ultimaAlertaMs = 0L
+
+    // Este objeto se encarga de abrir la cámara y traernos el resultado
+    private val camaraLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.TakePicturePreview()
+    ) { bitmap ->
+        if (bitmap != null) {
+            // La foto se tomó con éxito
+            Toast.makeText(this, "Foto del recibo capturada", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
+
 
     // =====================================================
     // [3] DECLARACIÓN DE VARIABLES / DATOS (estado del Activity)
@@ -79,18 +100,18 @@ class MainActivity : AppCompatActivity() {
         Finanza("Pago Internet", 190000.00, "02 Feb 2026"),
         Finanza("Servicios públicos", 500000.00, "02 Feb 2026"),
 
-    )
-
+        )
 
     private var tipoActual = "Ingreso"
-
-
 
     // =====================================================
     // 3.2 Referencia a componente visual (se inicializa luego)
     // - lateinit: la variable existirá, pero se asigna en onCreate
     // =====================================================
     private lateinit var pieChart: PieChart
+
+
+
 
     // =====================================================
     // [4] CICLO DE VIDA: onCreate()
@@ -145,7 +166,6 @@ class MainActivity : AppCompatActivity() {
         // - mostrarIngresos(): carga la lista inicial en pantalla
         // -----------------------------------------------------
         calcularTotales()
-        mostrarIngresos()
 
         // -----------------------------------------------------
         // [4.7] CONFIGURACIÓN DE BOTONES (Listeners)
@@ -197,11 +217,44 @@ class MainActivity : AppCompatActivity() {
         }
 
 
+        if(savedInstanceState == null){
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, MovimientosFragment())
+                .commit()
+        }
+
+
+
+        //inicializar sensor
+        sensorManager = getSystemService(SENSOR_SERVICE) as android.hardware.SensorManager
+
+        val acelerometro = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER)
+
+        if(acelerometro != null){
+            sensorManager.registerListener(
+                this,
+                acelerometro,
+                android.hardware.SensorManager.SENSOR_DELAY_NORMAL
+            )
+        }else{
+            Toast.makeText(this, "Este dispositivo no tiene acelerómetro", Toast.LENGTH_LONG).show()
+        }
+
 
     }//cierra OnCreate
 
 
 
+
+    private fun intentarAbrirCamara() {
+        // Verificamos si el usuario ya nos dio permiso antes
+        if (checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            camaraLauncher.launch(null) // Abrir cámara directamente
+        } else {
+            // Si no tiene permiso, lo pedimos formalmente
+            requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 100)
+        }
+    }
 
 
 
@@ -337,30 +390,42 @@ class MainActivity : AppCompatActivity() {
     //    - agregar al contenedor
     // =====================================================
 
-    private fun mostrarIngresos(){
+    fun mostrarIngresos(){
 
-        val container = findViewById<LinearLayout>(R.id.container_item)
-        container.removeAllViews()//limpiar pantalla
 
-        listaIngresos.forEach {  ingreso ->
-            val itemView = layoutInflater.inflate(R.layout.item_financiero,container,false)
+        //Buscamos el fragmento que pusimos en el "hueco" (fragment_container)
+        val  fragmentActual = supportFragmentManager.findFragmentById(R.id.fragment_container)
 
-            //llenar los datos
-            itemView.findViewById<TextView>(R.id.txt_concepto).text = ingreso.concepto
-            itemView.findViewById<TextView>(R.id.txt_fecha).text = ingreso.fecha
+        //Extraer la vista del fragmento para poder buscar dentro
+        val  vistaFragmento = fragmentActual?.view
 
-            //para personalizar color lo agrego a una variable
-            val txtMonto = itemView.findViewById<TextView>(R.id.txt_monto)
-            txtMonto.text = "+$ ${ingreso.monto}"
-            txtMonto.setTextColor(Color.parseColor("#4CAF50"))
+        val container = vistaFragmento?.findViewById<LinearLayout>(R.id.container_item)
 
-            val icon = itemView.findViewById<ImageView>(R.id.icon_type)
-            icon.setBackgroundResource(R.drawable.shape_circle_green)
-            icon.setImageResource(android.R.drawable.ic_input_add)
+        if(container != null){
+            container.removeAllViews()//limpiar pantalla
 
-            container.addView(itemView)
+            listaIngresos.forEach {  ingreso ->
+                val itemView = layoutInflater.inflate(R.layout.item_financiero,container,false)
 
-        }//cierra foreach
+                //llenar los datos
+                itemView.findViewById<TextView>(R.id.txt_concepto).text = ingreso.concepto
+                itemView.findViewById<TextView>(R.id.txt_fecha).text = ingreso.fecha
+
+                //para personalizar color lo agrego a una variable
+                val txtMonto = itemView.findViewById<TextView>(R.id.txt_monto)
+                txtMonto.text = "+$ ${ingreso.monto}"
+                txtMonto.setTextColor(Color.parseColor("#4CAF50"))
+
+                val icon = itemView.findViewById<ImageView>(R.id.icon_type)
+                icon.setBackgroundResource(R.drawable.shape_circle_green)
+                icon.setImageResource(android.R.drawable.ic_input_add)
+
+                container.addView(itemView)
+
+            }//cierra foreach
+        }
+
+
 
     }//cierra mostrar ingresos
 
@@ -368,30 +433,41 @@ class MainActivity : AppCompatActivity() {
     // [10] RENDER LISTA: Mostrar gastos (similar a ingresos)
     // Misma lógica, pero cambia el color/icono.
     // =====================================================
-    private fun mostrarGastos(){
+    fun mostrarGastos(){
 
-        val container = findViewById<LinearLayout>(R.id.container_item)
-        container.removeAllViews()//limpiar pantalla
+        //Buscamos el fragmento que pusimos en el "hueco" (fragment_container)
+        val  fragmentActual = supportFragmentManager.findFragmentById(R.id.fragment_container)
 
-        listaGastos.forEach {  gasto ->
-            val itemView = layoutInflater.inflate(R.layout.item_financiero,container,false)
+        //Extraer la vista del fragmento para poder buscar dentro
+        val  vistaFragmento = fragmentActual?.view
 
-            //llenar los datos
-            itemView.findViewById<TextView>(R.id.txt_concepto).text = gasto.concepto
-            itemView.findViewById<TextView>(R.id.txt_fecha).text = gasto.fecha
+        val container = vistaFragmento?.findViewById<LinearLayout>(R.id.container_item)
 
-            //para personalizar color lo agrego a una variable
-            val txtMonto = itemView.findViewById<TextView>(R.id.txt_monto)
-            txtMonto.text = "+$ ${gasto.monto}"
-            txtMonto.setTextColor(Color.parseColor("#F44336"))
 
-            val icon = itemView.findViewById<ImageView>(R.id.icon_type)
-            icon.setBackgroundResource(R.drawable.shape_circle_red)
-            icon.setImageResource(android.R.drawable.ic_delete)
+        if( container != null){
 
-            container.addView(itemView)
+            container.removeAllViews()//limpiar pantalla
 
-        }//cierra foreach
+            listaGastos.forEach {  gasto ->
+                val itemView = layoutInflater.inflate(R.layout.item_financiero,container,false)
+
+                //llenar los datos
+                itemView.findViewById<TextView>(R.id.txt_concepto).text = gasto.concepto
+                itemView.findViewById<TextView>(R.id.txt_fecha).text = gasto.fecha
+
+                //para personalizar color lo agrego a una variable
+                val txtMonto = itemView.findViewById<TextView>(R.id.txt_monto)
+                txtMonto.text = "+$ ${gasto.monto}"
+                txtMonto.setTextColor(Color.parseColor("#F44336"))
+
+                val icon = itemView.findViewById<ImageView>(R.id.icon_type)
+                icon.setBackgroundResource(R.drawable.shape_circle_red)
+                icon.setImageResource(android.R.drawable.ic_delete)
+
+                container.addView(itemView)
+
+            }//cierra foreach
+        }
 
     }//cierra mostrar Gastos
 
@@ -416,6 +492,10 @@ class MainActivity : AppCompatActivity() {
         )
 
         pieChart.data = PieData(dataSet)
+        //pieChart.animateX(1000)
+        //pieChart.animateY(1000)
+        pieChart.animateXY(1000,1000)
+
         pieChart.invalidate()
     }
 
@@ -424,6 +504,14 @@ class MainActivity : AppCompatActivity() {
         val view = layoutInflater.inflate(R.layout.dialog_registro, null)
         val etConcepto = view.findViewById<android.widget.EditText>(R.id.etConcepto)
         val etMonto = view.findViewById<android.widget.EditText>(R.id.etMonto)
+
+        val btnCamera = view.findViewById<android.widget.ImageView>(R.id.btn_camara)
+        btnCamera.setOnClickListener {
+            intentarAbrirCamara()
+        }
+
+
+
 
         val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Nuevo $tipoActual")
@@ -480,6 +568,22 @@ class MainActivity : AppCompatActivity() {
 
     }
 
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+
+    }
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        if(event?.sensor?.type != android.hardware.Sensor.TYPE_ACCELEROMETER) return
+
+        val x = event.values[0]
+        val ahora = System.currentTimeMillis()
+
+        if((x > 5 || x < -5) && (ahora - ultimaAlertaMs > 1500)){
+            ultimaAlertaMs = ahora
+            mostrarResumen()
+        }
+
+    }
 
 
 }
