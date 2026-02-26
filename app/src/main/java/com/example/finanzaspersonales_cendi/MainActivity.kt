@@ -11,6 +11,7 @@ import android.graphics.Color
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.os.Bundle
+import android.os.PersistableBundle
 import android.os.UserManager
 import android.view.Menu
 import android.view.MenuItem
@@ -59,7 +60,7 @@ data class Finanza(
 // - Calcula totales
 // - Pinta el gráfico
 // =====================================================
-class MainActivity : AppCompatActivity(), android.hardware.SensorEventListener {
+class MainActivity : AppCompatActivity(){
 
     //declarar una variable para toda la clase
     private lateinit var sensorManager: android.hardware.SensorManager
@@ -75,8 +76,6 @@ class MainActivity : AppCompatActivity(), android.hardware.SensorEventListener {
             Toast.makeText(this, "Foto del recibo capturada", Toast.LENGTH_SHORT).show()
         }
     }
-
-
 
 
     // =====================================================
@@ -122,6 +121,8 @@ class MainActivity : AppCompatActivity(), android.hardware.SensorEventListener {
     // 4) Se configuran botones (listeners)
     // =====================================================
 
+
+    //Métodos del ciclo de vida --
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -160,12 +161,47 @@ class MainActivity : AppCompatActivity(), android.hardware.SensorEventListener {
         pieChart = findViewById(R.id.pieChart)
 
 
+
+        //Recuperando los valores de la cajita
+        if(savedInstanceState != null){
+
+            //1-recuperar tipo actual
+            tipoActual = savedInstanceState.getString(KEY_TIPO_ACTUAL,"ingreso") ?: "ingreso"
+
+            val balanceText = savedInstanceState.getString(KEY_BALANCE_TEXT, "$0.00")
+
+            findViewById<TextView>(R.id.txt_total_balance).text = balanceText
+
+            //recuperar las listas
+
+            val ingresosJson = savedInstanceState.getString(KEY_INGRESOS_JSON)
+            val gastosJson = savedInstanceState.getString(KEY_GASTOS_JSON)
+
+            if(ingresosJson != null){
+                listaIngresos.clear()
+                listaIngresos.addAll(jsonToLista(ingresosJson))
+            }
+
+            if(gastosJson != null){
+                listaGastos.clear()
+                listaGastos.addAll(jsonToLista(gastosJson))
+            }
+
+        }
+
         // -----------------------------------------------------
         // [4.6] FLUJO INICIAL DE PANTALLA
         // - calcularTotales(): actualiza botones, balance y gráfico
         // - mostrarIngresos(): carga la lista inicial en pantalla
         // -----------------------------------------------------
         calcularTotales()
+
+
+        if(tipoActual === "Ingreso"){
+            mostrarIngresos()
+        } else{
+            mostrarGastos()
+        }
 
         // -----------------------------------------------------
         // [4.7] CONFIGURACIÓN DE BOTONES (Listeners)
@@ -190,6 +226,14 @@ class MainActivity : AppCompatActivity(), android.hardware.SensorEventListener {
         }
 
         val bottomNav = findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.bottomNav)
+
+
+        //marcar el nav seleccionado
+        bottomNav.selectedItemId = if(tipoActual == "Ingreso"){
+            R.id.nav_ingresos
+        }else{
+            R.id.nav_gastos
+        }
 
         bottomNav.setOnItemSelectedListener { item ->
             when (item.itemId){
@@ -224,28 +268,42 @@ class MainActivity : AppCompatActivity(), android.hardware.SensorEventListener {
         }
 
 
-
-        //inicializar sensor
-        sensorManager = getSystemService(SENSOR_SERVICE) as android.hardware.SensorManager
-
-        val acelerometro = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER)
-
-        if(acelerometro != null){
-            sensorManager.registerListener(
-                this,
-                acelerometro,
-                android.hardware.SensorManager.SENSOR_DELAY_NORMAL
-            )
-        }else{
-            Toast.makeText(this, "Este dispositivo no tiene acelerómetro", Toast.LENGTH_LONG).show()
+        if(savedInstanceState == null){
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, MovimientosFragment())
+                .commitNow()
         }
 
 
     }//cierra OnCreate
 
 
+    //nuestro maletin-cajita
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+
+        //Guardar qué vista estaba viendo el usuario
+        outState.putString(KEY_TIPO_ACTUAL,tipoActual)
 
 
+        //opcional guardar el texto del balance
+        val balanceText = findViewById<TextView>(R.id.txt_total_balance).text.toString()
+
+        outState.putString(KEY_BALANCE_TEXT, balanceText)
+
+        //opcional (recomendado) guardar listas
+
+        outState.putString(KEY_INGRESOS_JSON, listaToJson(listaIngresos))
+
+        outState.putString(KEY_GASTOS_JSON, listaToJson(listaGastos))
+
+    }
+
+
+
+
+
+    //Métodos helpers - auxiliares
     private fun intentarAbrirCamara() {
         // Verificamos si el usuario ya nos dio permiso antes
         if (checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -568,22 +626,64 @@ class MainActivity : AppCompatActivity(), android.hardware.SensorEventListener {
 
     }
 
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
 
+    fun refrescarListaActual(){
+        if(tipoActual == "Ingreso") mostrarIngresos() else mostrarGastos()
     }
 
-    override fun onSensorChanged(event: SensorEvent?) {
-        if(event?.sensor?.type != android.hardware.Sensor.TYPE_ACCELEROMETER) return
 
-        val x = event.values[0]
-        val ahora = System.currentTimeMillis()
+    private fun listaToJson(lista: List<Finanza>): String{
+        val array = org.json.JSONArray()
 
-        if((x > 5 || x < -5) && (ahora - ultimaAlertaMs > 1500)){
-            ultimaAlertaMs = ahora
-            mostrarResumen()
+        for(f in lista){
+            val obj = org.json.JSONObject()
+            obj.put("concepto", f.concepto)
+            obj.put("monto", f.monto)
+            obj.put("fecha",f.fecha)
+
+            array.put(obj)
         }
 
+        return array.toString()
+
+    }//cierra listaToJson
+
+
+    private fun jsonToLista(json: String): MutableList<Finanza>{
+        val array = org.json.JSONArray(json)
+
+        val result = mutableListOf<Finanza>()
+
+        for (i in 0 until array.length()){
+            val obj = array.getJSONObject(i)
+
+            result.add(
+                Finanza(
+                    concepto = obj.getString("concepto"),
+                    monto = obj.getDouble("monto"),
+                    fecha = obj.getString("fecha"),
+
+                )
+            )
+        }
+
+        return result
     }
 
 
-}
+
+
+
+    private companion object {
+
+        const val  KEY_TIPO_ACTUAL = "KEY_TIPO_ACTUAL"
+        const val  KEY_BALANCE_TEXT = "KEY_BALANCE_TEXT"
+
+        //OPCIONAL SI QUEREMOS CONSERVAR LISTAS
+        const val  KEY_INGRESOS_JSON = "KEY_INGRESOS_JSON"
+        const val  KEY_GASTOS_JSON = "KEY_GASTOS_JSON"
+    }
+
+
+
+}//cierra clase

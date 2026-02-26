@@ -23,7 +23,7 @@ class MovimientosFragment : Fragment() {
 
         //Al terminar de crear la vista, le pedimos a la activity
         //que ejecute la funcion mostrar los  datos
-        (activity as? MainActivity)?.mostrarIngresos()
+        (activity as? MainActivity)?.refrescarListaActual()
     }
 
 }
