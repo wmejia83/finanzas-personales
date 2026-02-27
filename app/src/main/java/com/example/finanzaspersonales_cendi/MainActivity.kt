@@ -7,6 +7,8 @@
 
 package com.example.finanzaspersonales_cendi
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.Color
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -62,6 +64,8 @@ data class Finanza(
 // =====================================================
 class MainActivity : AppCompatActivity(){
 
+    private lateinit var prefs: SharedPreferences
+
     //declarar una variable para toda la clase
     private lateinit var sensorManager: android.hardware.SensorManager
 
@@ -98,7 +102,6 @@ class MainActivity : AppCompatActivity(){
         Finanza("Compra de Café", 40000.00, "01 Feb 2026"),
         Finanza("Pago Internet", 190000.00, "02 Feb 2026"),
         Finanza("Servicios públicos", 500000.00, "02 Feb 2026"),
-
         )
 
     private var tipoActual = "Ingreso"
@@ -109,9 +112,6 @@ class MainActivity : AppCompatActivity(){
     // =====================================================
     private lateinit var pieChart: PieChart
 
-
-
-
     // =====================================================
     // [4] CICLO DE VIDA: onCreate()
     // Este es el punto de arranque:
@@ -120,7 +120,6 @@ class MainActivity : AppCompatActivity(){
     // 3) Se llama el flujo inicial: cálculos + mostrar lista
     // 4) Se configuran botones (listeners)
     // =====================================================
-
 
     //Métodos del ciclo de vida --
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -136,6 +135,9 @@ class MainActivity : AppCompatActivity(){
         // [4.2] Cargar el layout principal de esta Activity
         // -----------------------------------------------------
         setContentView(R.layout.activity_main)
+
+
+        prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
         // -----------------------------------------------------
         // [4.3] Manejo de insets (barras del sistema)
@@ -187,6 +189,9 @@ class MainActivity : AppCompatActivity(){
                 listaGastos.addAll(jsonToLista(gastosJson))
             }
 
+        }else{
+            //Inicio normal: SharePreferences manda
+            loadFromPrefs()
         }
 
         // -----------------------------------------------------
@@ -213,7 +218,9 @@ class MainActivity : AppCompatActivity(){
         // - Muestra lista de ingresos
         // - Muestra un mensaje rápido (Toast)
         findViewById<Button>(R.id.btn_ingresos).setOnClickListener {
+            tipoActual = "Ingreso"
             mostrarIngresos()
+            saveToPrefs()
             Toast.makeText(this, "Mostrando Ingresos", Toast.LENGTH_SHORT).show()
         }
 
@@ -221,7 +228,9 @@ class MainActivity : AppCompatActivity(){
         // - Muestra lista de gastos
         // - Muestra un mensaje rápido (Toast)
         findViewById<Button>(R.id.btn_gastos).setOnClickListener {
+            tipoActual = "Gasto"
             mostrarGastos()
+            saveToPrefs()
             Toast.makeText(this, "Mostrando Gastos", Toast.LENGTH_SHORT).show()
         }
 
@@ -240,12 +249,14 @@ class MainActivity : AppCompatActivity(){
                 R.id.nav_ingresos -> {
                     tipoActual = "Ingreso"
                     mostrarIngresos()
+                    saveToPrefs()
                     true
                 }
 
                 R.id.nav_gastos -> {
                     tipoActual = "Gasto"
                     mostrarGastos()
+                    saveToPrefs()
                     true
                 }
 
@@ -278,6 +289,14 @@ class MainActivity : AppCompatActivity(){
     }//cierra OnCreate
 
 
+
+    override fun onPause() {
+        super.onPause()
+        saveToPrefs()
+    }
+
+
+
     //nuestro maletin-cajita
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
@@ -298,10 +317,7 @@ class MainActivity : AppCompatActivity(){
         outState.putString(KEY_GASTOS_JSON, listaToJson(listaGastos))
 
     }
-
-
-
-
+    
 
     //Métodos helpers - auxiliares
     private fun intentarAbrirCamara() {
@@ -619,6 +635,7 @@ class MainActivity : AppCompatActivity(){
                 }
 
                 calcularTotales()
+                saveToPrefs()
                 dialog.dismiss() // Cerrar manualmente si todo es correcto
             }
         }
@@ -670,18 +687,59 @@ class MainActivity : AppCompatActivity(){
         return result
     }
 
+    private fun saveToPrefs() {
+        val balanceText = findViewById<TextView>(R.id.txt_total_balance).text.toString()
 
+        prefs.edit()
+            .putString(PREF_TIPO_ACTUAL, tipoActual)
+            .putString(PREF_INGRESOS_JSON, listaToJson(listaIngresos))
+            .putString(PREF_GASTOS_JSON, listaToJson(listaGastos))
+            .putString(PREF_BALANCE_TEXT, balanceText)
+            .apply()
+    }
+
+    private fun loadFromPrefs() {
+        tipoActual = prefs.getString(PREF_TIPO_ACTUAL, "Ingreso") ?: "Ingreso"
+
+
+        val ingresosJson = prefs.getString(PREF_INGRESOS_JSON, null)
+        val gastosJson = prefs.getString(PREF_GASTOS_JSON, null)
+
+
+        if (!ingresosJson.isNullOrEmpty()) {
+            listaIngresos.clear()
+            listaIngresos.addAll(jsonToLista(ingresosJson))
+        }
+
+
+        if (!gastosJson.isNullOrEmpty()) {
+            listaGastos.clear()
+            listaGastos.addAll(jsonToLista(gastosJson))
+        }
+
+
+        val balanceText = prefs.getString(PREF_BALANCE_TEXT, "$0.00") ?: "$0.00"
+        findViewById<TextView>(R.id.txt_total_balance).text = balanceText
+    }
 
 
 
     private companion object {
 
+        //Bundle keys(rotación)
         const val  KEY_TIPO_ACTUAL = "KEY_TIPO_ACTUAL"
         const val  KEY_BALANCE_TEXT = "KEY_BALANCE_TEXT"
 
         //OPCIONAL SI QUEREMOS CONSERVAR LISTAS
         const val  KEY_INGRESOS_JSON = "KEY_INGRESOS_JSON"
         const val  KEY_GASTOS_JSON = "KEY_GASTOS_JSON"
+
+        //SharedPreferences
+        const val  PREFS_NAME = "finanzas_prefs"
+        const val  PREF_TIPO_ACTUAL = "pref_tipo_actual"
+        const val  PREF_INGRESOS_JSON = "pref_ingresos_json"
+        const val PREF_GASTOS_JSON = "pref_gastos_json"
+        const val PREF_BALANCE_TEXT = "pref_balance_text"
     }
 
 
