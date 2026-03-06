@@ -10,11 +10,7 @@ package com.example.finanzaspersonales_cendi
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Color
-import android.hardware.Sensor
-import android.hardware.SensorEvent
 import android.os.Bundle
-import android.os.PersistableBundle
-import android.os.UserManager
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.Button
@@ -23,12 +19,9 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.ToolbarWidgetWrapper
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import com.bumptech.glide.Glide
 import com.github.mikephil.charting.charts.PieChart
 import com.github.mikephil.charting.data.PieData
 import com.github.mikephil.charting.data.PieDataSet
@@ -46,6 +39,8 @@ import kotlin.toString
 // ingresos y gastos para guardar info de forma ordenada.
 // =====================================================
 data class Finanza(
+    val id: Long = 0,
+    val tipo: String, //ingreso - egreso
     val concepto: String,
     val monto: Double,
     val fecha: String
@@ -64,45 +59,17 @@ data class Finanza(
 // =====================================================
 class MainActivity : AppCompatActivity(){
 
+    // =====================================================
+    // [3] DECLARACIÓN DE VARIABLES
+    // =====================================================
+    private lateinit var repo: MovimientosRepository
+
     private lateinit var prefs: SharedPreferences
 
     //declarar una variable para toda la clase
-    private lateinit var sensorManager: android.hardware.SensorManager
+    //private lateinit var sensorManager: android.hardware.SensorManager
 
     private var ultimaAlertaMs = 0L
-
-    // Este objeto se encarga de abrir la cámara y traernos el resultado
-    private val camaraLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.TakePicturePreview()
-    ) { bitmap ->
-        if (bitmap != null) {
-            // La foto se tomó con éxito
-            Toast.makeText(this, "Foto del recibo capturada", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-
-    // =====================================================
-    // [3] DECLARACIÓN DE VARIABLES / DATOS (estado del Activity)
-    //
-    // 3.1 Listas de datos (simulan datos reales)
-    // - listaIngresos: entradas positivas de dinero
-    // - listaGastos: salidas de dinero
-    //
-    // Nota didáctica: aquí se define la "fuente de verdad" del UI:
-    // los totales, el listado y el gráfico dependen de estas listas.
-    // =====================================================
-    private val listaIngresos = mutableListOf(
-        Finanza("Venta de sitio web", 800000.00, "01 Feb 2026"),
-        Finanza("Pago de suscripción", 50000.00, "02 Feb 2026"),
-        Finanza("Salario", 5000000.00, "03 Feb 2026")
-    )
-
-    private val listaGastos = mutableListOf(
-        Finanza("Compra de Café", 40000.00, "01 Feb 2026"),
-        Finanza("Pago Internet", 190000.00, "02 Feb 2026"),
-        Finanza("Servicios públicos", 500000.00, "02 Feb 2026"),
-        )
 
     private var tipoActual = "Ingreso"
 
@@ -135,6 +102,9 @@ class MainActivity : AppCompatActivity(){
         // [4.2] Cargar el layout principal de esta Activity
         // -----------------------------------------------------
         setContentView(R.layout.activity_main)
+
+
+        repo = MovimientosRepository(this)
 
 
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -170,24 +140,6 @@ class MainActivity : AppCompatActivity(){
             //1-recuperar tipo actual
             tipoActual = savedInstanceState.getString(KEY_TIPO_ACTUAL,"ingreso") ?: "ingreso"
 
-            val balanceText = savedInstanceState.getString(KEY_BALANCE_TEXT, "$0.00")
-
-            findViewById<TextView>(R.id.txt_total_balance).text = balanceText
-
-            //recuperar las listas
-
-            val ingresosJson = savedInstanceState.getString(KEY_INGRESOS_JSON)
-            val gastosJson = savedInstanceState.getString(KEY_GASTOS_JSON)
-
-            if(ingresosJson != null){
-                listaIngresos.clear()
-                listaIngresos.addAll(jsonToLista(ingresosJson))
-            }
-
-            if(gastosJson != null){
-                listaGastos.clear()
-                listaGastos.addAll(jsonToLista(gastosJson))
-            }
 
         }else{
             //Inicio normal: SharePreferences manda
@@ -278,7 +230,6 @@ class MainActivity : AppCompatActivity(){
                 .commit()
         }
 
-
         if(savedInstanceState == null){
             supportFragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, MovimientosFragment())
@@ -287,8 +238,6 @@ class MainActivity : AppCompatActivity(){
 
 
     }//cierra OnCreate
-
-
 
     override fun onPause() {
         super.onPause()
@@ -308,29 +257,10 @@ class MainActivity : AppCompatActivity(){
         //opcional guardar el texto del balance
         val balanceText = findViewById<TextView>(R.id.txt_total_balance).text.toString()
 
-        outState.putString(KEY_BALANCE_TEXT, balanceText)
-
         //opcional (recomendado) guardar listas
 
-        outState.putString(KEY_INGRESOS_JSON, listaToJson(listaIngresos))
-
-        outState.putString(KEY_GASTOS_JSON, listaToJson(listaGastos))
 
     }
-    
-
-    //Métodos helpers - auxiliares
-    private fun intentarAbrirCamara() {
-        // Verificamos si el usuario ya nos dio permiso antes
-        if (checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            camaraLauncher.launch(null) // Abrir cámara directamente
-        } else {
-            // Si no tiene permiso, lo pedimos formalmente
-            requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 100)
-        }
-    }
-
-
 
 
     // =====================================================
@@ -351,7 +281,7 @@ class MainActivity : AppCompatActivity(){
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.menu_resumen -> mostrarResumen()
-            R.id.menu_limpiar -> limpiarTodo()
+            //R.id.menu_limpiar -> limpiarTodo()
             R.id.menu_salir -> confirmarSalida()
             else -> Toast.makeText(this, item.title, Toast.LENGTH_SHORT).show()
         }
@@ -381,29 +311,20 @@ class MainActivity : AppCompatActivity(){
     // Muestra un AlertDialog con resumen de ingresos, gastos y balance.
     // Calcula totales con sumOf sobre cada lista.
     private fun mostrarResumen() {
-        val ing = listaIngresos.sumOf { it.monto }  // total ingresos
-        val gas = listaGastos.sumOf { it.monto } // total gastos
-        val balance = ing - gas                  // diferencia
+        val (totalIngresos, totalGastos) = repo.getTotales()
+
+        val balance = totalIngresos - totalGastos                  // diferencia
 
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Resumen")
             // ¡Aquí usamos nuestra extensión .formatearMiles()!
             .setMessage(
-                "Ingresos: $ ${ing.formatearMiles()}\n" +
-                        "Gastos: $ ${gas.formatearMiles()}\n" +
+                "Ingresos: $ ${totalIngresos.formatearMiles()}\n" +
+                        "Gastos: $ ${totalGastos.formatearMiles()}\n" +
                         "Balance: $ ${balance.formatearMiles()}"
             )
             .setPositiveButton("OK", null)
             .show()
-    }
-
-    // Limpia las listas y limpia el contenedor visual.
-    // Luego recalcula totales para dejar el UI coherente.
-    private fun limpiarTodo() {
-        listaIngresos.clear(); listaGastos.clear()
-        findViewById<LinearLayout>(R.id.container_item).removeAllViews()
-        calcularTotales()
-        Toast.makeText(this, "Listas limpiadas", Toast.LENGTH_SHORT).show()
     }
 
     // Confirmación para salir. finishAffinity() cierra la app completa.
@@ -426,9 +347,8 @@ class MainActivity : AppCompatActivity(){
     // 4) actualiza el gráfico con esos totales
     // =====================================================
     private fun calcularTotales(){
-        //sumar cada lista por separado
-        val totalIngresos = listaIngresos.sumOf {  it.monto}
-        val totalGastos = listaGastos.sumOf { it.monto }
+
+        val (totalIngresos, totalGastos) = repo.getTotales()
         val balance = totalIngresos - totalGastos
 
         //actualizar el texto de los botones con el valor
@@ -466,7 +386,6 @@ class MainActivity : AppCompatActivity(){
 
     fun mostrarIngresos(){
 
-
         //Buscamos el fragmento que pusimos en el "hueco" (fragment_container)
         val  fragmentActual = supportFragmentManager.findFragmentById(R.id.fragment_container)
 
@@ -476,9 +395,12 @@ class MainActivity : AppCompatActivity(){
         val container = vistaFragmento?.findViewById<LinearLayout>(R.id.container_item)
 
         if(container != null){
+
+            val ingresos = repo.getByTipo("Ingreso") //trae todo los ingresos de bd
+
             container.removeAllViews()//limpiar pantalla
 
-            listaIngresos.forEach {  ingreso ->
+            ingresos.forEach {  ingreso ->
                 val itemView = layoutInflater.inflate(R.layout.item_financiero,container,false)
 
                 //llenar los datos
@@ -520,9 +442,11 @@ class MainActivity : AppCompatActivity(){
 
         if( container != null){
 
+            val gastos = repo.getByTipo("Gasto")
+
             container.removeAllViews()//limpiar pantalla
 
-            listaGastos.forEach {  gasto ->
+            gastos.forEach {  gasto ->
                 val itemView = layoutInflater.inflate(R.layout.item_financiero,container,false)
 
                 //llenar los datos
@@ -579,13 +503,6 @@ class MainActivity : AppCompatActivity(){
         val etConcepto = view.findViewById<android.widget.EditText>(R.id.etConcepto)
         val etMonto = view.findViewById<android.widget.EditText>(R.id.etMonto)
 
-        val btnCamera = view.findViewById<android.widget.ImageView>(R.id.btn_camara)
-        btnCamera.setOnClickListener {
-            intentarAbrirCamara()
-        }
-
-
-
 
         val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Nuevo $tipoActual")
@@ -623,19 +540,20 @@ class MainActivity : AppCompatActivity(){
                 val fechaActual = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
                     .format(java.util.Date())
 
-                val nuevo = Finanza(concepto, monto, fechaActual)
+                val nuevoMovimiento = Finanza(
+                    tipo = tipoActual,
+                    concepto = concepto,
+                    monto = monto,
+                    fecha = fechaActual
+                )
 
                 // Guardar según el tipo actual seleccionado
-                if (tipoActual == "Ingreso") {
-                    listaIngresos.add(nuevo)
-                    mostrarIngresos()
-                } else {
-                    listaGastos.add(nuevo)
-                    mostrarGastos()
-                }
+                repo.insert(nuevoMovimiento)
+
+                refrescarListaActual()
 
                 calcularTotales()
-                saveToPrefs()
+
                 dialog.dismiss() // Cerrar manualmente si todo es correcto
             }
         }
@@ -649,99 +567,30 @@ class MainActivity : AppCompatActivity(){
     }
 
 
-    private fun listaToJson(lista: List<Finanza>): String{
-        val array = org.json.JSONArray()
-
-        for(f in lista){
-            val obj = org.json.JSONObject()
-            obj.put("concepto", f.concepto)
-            obj.put("monto", f.monto)
-            obj.put("fecha",f.fecha)
-
-            array.put(obj)
-        }
-
-        return array.toString()
-
-    }//cierra listaToJson
-
-
-    private fun jsonToLista(json: String): MutableList<Finanza>{
-        val array = org.json.JSONArray(json)
-
-        val result = mutableListOf<Finanza>()
-
-        for (i in 0 until array.length()){
-            val obj = array.getJSONObject(i)
-
-            result.add(
-                Finanza(
-                    concepto = obj.getString("concepto"),
-                    monto = obj.getDouble("monto"),
-                    fecha = obj.getString("fecha"),
-
-                )
-            )
-        }
-
-        return result
-    }
 
     private fun saveToPrefs() {
         val balanceText = findViewById<TextView>(R.id.txt_total_balance).text.toString()
 
         prefs.edit()
             .putString(PREF_TIPO_ACTUAL, tipoActual)
-            .putString(PREF_INGRESOS_JSON, listaToJson(listaIngresos))
-            .putString(PREF_GASTOS_JSON, listaToJson(listaGastos))
-            .putString(PREF_BALANCE_TEXT, balanceText)
             .apply()
     }
 
     private fun loadFromPrefs() {
         tipoActual = prefs.getString(PREF_TIPO_ACTUAL, "Ingreso") ?: "Ingreso"
-
-
-        val ingresosJson = prefs.getString(PREF_INGRESOS_JSON, null)
-        val gastosJson = prefs.getString(PREF_GASTOS_JSON, null)
-
-
-        if (!ingresosJson.isNullOrEmpty()) {
-            listaIngresos.clear()
-            listaIngresos.addAll(jsonToLista(ingresosJson))
-        }
-
-
-        if (!gastosJson.isNullOrEmpty()) {
-            listaGastos.clear()
-            listaGastos.addAll(jsonToLista(gastosJson))
-        }
-
-
-        val balanceText = prefs.getString(PREF_BALANCE_TEXT, "$0.00") ?: "$0.00"
-        findViewById<TextView>(R.id.txt_total_balance).text = balanceText
     }
-
 
 
     private companion object {
 
         //Bundle keys(rotación)
         const val  KEY_TIPO_ACTUAL = "KEY_TIPO_ACTUAL"
-        const val  KEY_BALANCE_TEXT = "KEY_BALANCE_TEXT"
 
-        //OPCIONAL SI QUEREMOS CONSERVAR LISTAS
-        const val  KEY_INGRESOS_JSON = "KEY_INGRESOS_JSON"
-        const val  KEY_GASTOS_JSON = "KEY_GASTOS_JSON"
 
         //SharedPreferences
         const val  PREFS_NAME = "finanzas_prefs"
         const val  PREF_TIPO_ACTUAL = "pref_tipo_actual"
-        const val  PREF_INGRESOS_JSON = "pref_ingresos_json"
-        const val PREF_GASTOS_JSON = "pref_gastos_json"
-        const val PREF_BALANCE_TEXT = "pref_balance_text"
     }
-
 
 
 }//cierra clase
