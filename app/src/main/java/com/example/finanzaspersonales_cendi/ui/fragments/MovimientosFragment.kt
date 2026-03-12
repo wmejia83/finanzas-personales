@@ -1,11 +1,12 @@
-package com.example.finanzaspersonales_cendi
+package com.example.finanzaspersonales_cendi.ui.fragments
 
 import android.os.Bundle
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-
+import androidx.fragment.app.Fragment
+import com.example.finanzaspersonales_cendi.R
+import com.example.finanzaspersonales_cendi.ui.activities.MainActivity
 
 class MovimientosFragment : Fragment() {
 

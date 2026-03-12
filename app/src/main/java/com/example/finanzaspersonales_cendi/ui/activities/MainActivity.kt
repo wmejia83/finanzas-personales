@@ -5,48 +5,39 @@
 // - MPAndroidChart (PieChart, PieData, PieDataSet, PieEntry)
 // =====================================================
 
-package com.example.finanzaspersonales_cendi
+package com.example.finanzaspersonales_cendi.ui.activities
 
-import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.Button
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.example.finanzaspersonales_cendi.ui.fragments.MovimientosFragment
+import com.example.finanzaspersonales_cendi.data.repository.MovimientosRepository
+import com.example.finanzaspersonales_cendi.R
 import com.github.mikephil.charting.charts.PieChart
 import com.github.mikephil.charting.data.PieData
 import com.github.mikephil.charting.data.PieDataSet
 import com.github.mikephil.charting.data.PieEntry
-import kotlin.toString
-
-// =====================================================
-// [1] MODELO DE DATOS (Data Class)
-// Representa un movimiento financiero simple.
-// - concepto: qué fue
-// - monto: cuánto fue
-// - fecha: cuándo fue
-//
-// Nota didáctica: esta clase es la "estructura" que usarán
-// ingresos y gastos para guardar info de forma ordenada.
-// =====================================================
-data class Finanza(
-    val id: Long = 0,
-    val tipo: String, //ingreso - egreso
-    val concepto: String,
-    val monto: Double,
-    val fecha: String
-)
-
-
+import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.floatingactionbutton.FloatingActionButton
+import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import com.example.finanzaspersonales_cendi.model.Movimiento
 
 // =====================================================
 // [2] ACTIVITY PRINCIPAL
@@ -63,32 +54,16 @@ class MainActivity : AppCompatActivity(){
     // [3] DECLARACIÓN DE VARIABLES
     // =====================================================
     private lateinit var repo: MovimientosRepository
-
     private lateinit var prefs: SharedPreferences
 
-    //declarar una variable para toda la clase
-    //private lateinit var sensorManager: android.hardware.SensorManager
-
     private var ultimaAlertaMs = 0L
-
     private var tipoActual = "Ingreso"
-
-    // =====================================================
-    // 3.2 Referencia a componente visual (se inicializa luego)
-    // - lateinit: la variable existirá, pero se asigna en onCreate
-    // =====================================================
     private lateinit var pieChart: PieChart
 
     // =====================================================
     // [4] CICLO DE VIDA: onCreate()
-    // Este es el punto de arranque:
-    // 1) Se monta la pantalla (layout)
-    // 2) Se conectan componentes UI (findViewById)
-    // 3) Se llama el flujo inicial: cálculos + mostrar lista
-    // 4) Se configuran botones (listeners)
     // =====================================================
 
-    //Métodos del ciclo de vida --
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -103,11 +78,9 @@ class MainActivity : AppCompatActivity(){
         // -----------------------------------------------------
         setContentView(R.layout.activity_main)
 
-
         repo = MovimientosRepository(this)
 
-
-        prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
 
         // -----------------------------------------------------
         // [4.3] Manejo de insets (barras del sistema)
@@ -124,40 +97,27 @@ class MainActivity : AppCompatActivity(){
         // 1) Se busca por ID
         // 2) Se define como ActionBar
         // -----------------------------------------------------
-        val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
+        val toolbar = findViewById<Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
 
-        // -----------------------------------------------------
-        // [4.5] GRÁFICO: conectar el PieChart por ID
-        // -----------------------------------------------------
         pieChart = findViewById(R.id.pieChart)
-
-
 
         //Recuperando los valores de la cajita
         if(savedInstanceState != null){
-
             //1-recuperar tipo actual
             tipoActual = savedInstanceState.getString(KEY_TIPO_ACTUAL,"ingreso") ?: "ingreso"
-
 
         }else{
             //Inicio normal: SharePreferences manda
             loadFromPrefs()
         }
 
-        // -----------------------------------------------------
-        // [4.6] FLUJO INICIAL DE PANTALLA
-        // - calcularTotales(): actualiza botones, balance y gráfico
-        // - mostrarIngresos(): carga la lista inicial en pantalla
-        // -----------------------------------------------------
         calcularTotales()
 
-
         if(tipoActual === "Ingreso"){
-            mostrarIngresos()
+            mostrarMovimientos("Ingreso")
         } else{
-            mostrarGastos()
+            mostrarMovimientos("Gasto")
         }
 
         // -----------------------------------------------------
@@ -165,13 +125,9 @@ class MainActivity : AppCompatActivity(){
         // Cada botón cambia lo que se muestra en el contenedor.
         // -----------------------------------------------------
 
-
-        // Click en botón ingresos:
-        // - Muestra lista de ingresos
-        // - Muestra un mensaje rápido (Toast)
         findViewById<Button>(R.id.btn_ingresos).setOnClickListener {
             tipoActual = "Ingreso"
-            mostrarIngresos()
+            mostrarMovimientos("Ingreso")
             saveToPrefs()
             Toast.makeText(this, "Mostrando Ingresos", Toast.LENGTH_SHORT).show()
         }
@@ -181,13 +137,12 @@ class MainActivity : AppCompatActivity(){
         // - Muestra un mensaje rápido (Toast)
         findViewById<Button>(R.id.btn_gastos).setOnClickListener {
             tipoActual = "Gasto"
-            mostrarGastos()
+            mostrarMovimientos("Gasto")
             saveToPrefs()
             Toast.makeText(this, "Mostrando Gastos", Toast.LENGTH_SHORT).show()
         }
 
-        val bottomNav = findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.bottomNav)
-
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNav)
 
         //marcar el nav seleccionado
         bottomNav.selectedItemId = if(tipoActual == "Ingreso"){
@@ -200,14 +155,14 @@ class MainActivity : AppCompatActivity(){
             when (item.itemId){
                 R.id.nav_ingresos -> {
                     tipoActual = "Ingreso"
-                    mostrarIngresos()
+                    mostrarMovimientos("Ingreso")
                     saveToPrefs()
                     true
                 }
 
                 R.id.nav_gastos -> {
                     tipoActual = "Gasto"
-                    mostrarGastos()
+                    mostrarMovimientos("Gasto")
                     saveToPrefs()
                     true
                 }
@@ -218,11 +173,9 @@ class MainActivity : AppCompatActivity(){
 
         }
 
-
-        findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.fab_add).setOnClickListener {
+        findViewById<FloatingActionButton>(R.id.fab_add).setOnClickListener {
             configurarDialogRegistroAvanzado()
         }
-
 
         if(savedInstanceState == null){
             supportFragmentManager.beginTransaction()
@@ -236,15 +189,13 @@ class MainActivity : AppCompatActivity(){
                 .commitNow()
         }
 
-
     }//cierra OnCreate
+
 
     override fun onPause() {
         super.onPause()
         saveToPrefs()
     }
-
-
 
     //nuestro maletin-cajita
     override fun onSaveInstanceState(outState: Bundle) {
@@ -253,12 +204,10 @@ class MainActivity : AppCompatActivity(){
         //Guardar qué vista estaba viendo el usuario
         outState.putString(KEY_TIPO_ACTUAL,tipoActual)
 
-
         //opcional guardar el texto del balance
         val balanceText = findViewById<TextView>(R.id.txt_total_balance).text.toString()
 
         //opcional (recomendado) guardar listas
-
 
     }
 
@@ -269,7 +218,6 @@ class MainActivity : AppCompatActivity(){
     // onCreateOptionsMenu: "infla" (carga) el menú XML en la toolbar
     // onOptionsItemSelected: decide qué hacer cuando se toca una opción
     // =====================================================
-
 
     //Inflar el menú en la toolbar - mostrar los tres punticos
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -289,33 +237,27 @@ class MainActivity : AppCompatActivity(){
         return true
     }
 
-
     // =====================================================
     // [6] HELPERS / UTILIDADES (pequeñas funciones de apoyo)
     // Aquí agregas cosas reutilizables para no repetir lógica.
     // =====================================================
-
     // Esta es una función de extensión para Double
     // Permite llamar: 1234567.0.formatearMiles()
     // para mostrar "1,234,567" dependiendo de la configuración regional.
     fun Double.formatearMiles(): String {
-        val formato = java.text.NumberFormat.getInstance()
+        val formato = NumberFormat.getInstance()
         return formato.format(this)
     }
-
 
     // =====================================================
     // [7] ACCIONES DEL MENÚ (Funciones ejecutadas desde Toolbar)
     // =====================================================
-
-    // Muestra un AlertDialog con resumen de ingresos, gastos y balance.
-    // Calcula totales con sumOf sobre cada lista.
     private fun mostrarResumen() {
         val (totalIngresos, totalGastos) = repo.getTotales()
 
         val balance = totalIngresos - totalGastos                  // diferencia
 
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        AlertDialog.Builder(this)
             .setTitle("Resumen")
             // ¡Aquí usamos nuestra extensión .formatearMiles()!
             .setMessage(
@@ -329,7 +271,7 @@ class MainActivity : AppCompatActivity(){
 
     // Confirmación para salir. finishAffinity() cierra la app completa.
     private fun confirmarSalida() {
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        AlertDialog.Builder(this)
             .setTitle("Salir")
             .setMessage("¿Deseas salir de la aplicación?")
             .setPositiveButton("Sí") { _, _ -> finishAffinity() }
@@ -352,12 +294,12 @@ class MainActivity : AppCompatActivity(){
         val balance = totalIngresos - totalGastos
 
         //actualizar el texto de los botones con el valor
-        findViewById<Button>(R.id.btn_gastos).text = "Gastos \n $ ${totalGastos}"
-        findViewById<Button>(R.id.btn_ingresos).text = "Ingreos \n $ ${totalIngresos}"
+        findViewById<Button>(R.id.btn_gastos).text = "Gastos \n $ ${totalGastos.formatearMiles()}"
+        findViewById<Button>(R.id.btn_ingresos).text = "Ingreos \n $ ${totalIngresos.formatearMiles()}"
 
         //actualizamos el balance en la vista
         val textBalance = findViewById<TextView>(R.id.txt_total_balance)
-        textBalance.text = "$ ${balance}"
+        textBalance.text = "$ ${balance.formatearMiles()}"
 
         if(balance >= 0){
             textBalance.setTextColor(Color.parseColor("#4CAF50"))
@@ -371,113 +313,49 @@ class MainActivity : AppCompatActivity(){
 
     }//cierra calcularTotales
 
-    // =====================================================
-    // [9] RENDER LISTA: Mostrar ingresos
-    //
-    // Flujo:
-    // 1) obtener el contenedor (LinearLayout)
-    // 2) limpiar lo anterior
-    // 3) por cada ingreso:
-    //    - inflar una vista item_financiero
-    //    - llenar textos
-    //    - personalizar color/icono
-    //    - agregar al contenedor
-    // =====================================================
-
-    fun mostrarIngresos(){
-
-        //Buscamos el fragmento que pusimos en el "hueco" (fragment_container)
+    private fun mostrarMovimientos(tipo: String){
         val  fragmentActual = supportFragmentManager.findFragmentById(R.id.fragment_container)
-
-        //Extraer la vista del fragmento para poder buscar dentro
         val  vistaFragmento = fragmentActual?.view
-
         val container = vistaFragmento?.findViewById<LinearLayout>(R.id.container_item)
-
         if(container != null){
 
-            val ingresos = repo.getByTipo("Ingreso") //trae todo los ingresos de bd
+            val movimientos = repo.getByTipo(tipo) //
 
             container.removeAllViews()//limpiar pantalla
 
-            ingresos.forEach {  ingreso ->
+            movimientos.forEach {  movimiento ->
                 val itemView = layoutInflater.inflate(R.layout.item_financiero,container,false)
 
                 //llenar los datos
-                itemView.findViewById<TextView>(R.id.txt_concepto).text = ingreso.concepto
-                itemView.findViewById<TextView>(R.id.txt_fecha).text = ingreso.fecha
+                itemView.findViewById<TextView>(R.id.txt_concepto).text = movimiento.concepto
+                itemView.findViewById<TextView>(R.id.txt_fecha).text = movimiento.fecha
 
                 //para personalizar color lo agrego a una variable
                 val txtMonto = itemView.findViewById<TextView>(R.id.txt_monto)
-                txtMonto.text = "+$ ${ingreso.monto}"
-                txtMonto.setTextColor(Color.parseColor("#4CAF50"))
 
                 val icon = itemView.findViewById<ImageView>(R.id.icon_type)
-                icon.setBackgroundResource(R.drawable.shape_circle_green)
-                icon.setImageResource(android.R.drawable.ic_input_add)
+
+                if(tipo == "Ingreso"){
+                    txtMonto.text = "+$ ${movimiento.monto.formatearMiles()}"
+                    txtMonto.setTextColor(Color.parseColor("#4CAF50"))
+                    icon.setBackgroundResource(R.drawable.shape_circle_green)
+                    icon.setImageResource(android.R.drawable.ic_input_add)
+                }else{
+                    txtMonto.text = "-$ ${movimiento.monto.formatearMiles()}"
+                    txtMonto.setTextColor(Color.parseColor("#F44336"))
+                    icon.setBackgroundResource(R.drawable.shape_circle_red)
+                    icon.setImageResource(android.R.drawable.ic_delete)
+                }
 
                 container.addView(itemView)
 
             }//cierra foreach
         }
 
-
-
-    }//cierra mostrar ingresos
-
-    // =====================================================
-    // [10] RENDER LISTA: Mostrar gastos (similar a ingresos)
-    // Misma lógica, pero cambia el color/icono.
-    // =====================================================
-    fun mostrarGastos(){
-
-        //Buscamos el fragmento que pusimos en el "hueco" (fragment_container)
-        val  fragmentActual = supportFragmentManager.findFragmentById(R.id.fragment_container)
-
-        //Extraer la vista del fragmento para poder buscar dentro
-        val  vistaFragmento = fragmentActual?.view
-
-        val container = vistaFragmento?.findViewById<LinearLayout>(R.id.container_item)
-
-
-        if( container != null){
-
-            val gastos = repo.getByTipo("Gasto")
-
-            container.removeAllViews()//limpiar pantalla
-
-            gastos.forEach {  gasto ->
-                val itemView = layoutInflater.inflate(R.layout.item_financiero,container,false)
-
-                //llenar los datos
-                itemView.findViewById<TextView>(R.id.txt_concepto).text = gasto.concepto
-                itemView.findViewById<TextView>(R.id.txt_fecha).text = gasto.fecha
-
-                //para personalizar color lo agrego a una variable
-                val txtMonto = itemView.findViewById<TextView>(R.id.txt_monto)
-                txtMonto.text = "+$ ${gasto.monto}"
-                txtMonto.setTextColor(Color.parseColor("#F44336"))
-
-                val icon = itemView.findViewById<ImageView>(R.id.icon_type)
-                icon.setBackgroundResource(R.drawable.shape_circle_red)
-                icon.setImageResource(android.R.drawable.ic_delete)
-
-                container.addView(itemView)
-
-            }//cierra foreach
-        }
-
-    }//cierra mostrar Gastos
+    }
 
     // =====================================================
     // [11] GRÁFICO: Actualizar PieChart
-    //
-    // Este método recibe los totales ya calculados y hace:
-    // 1) convertir a PieEntry (Float + label)
-    // 2) construir el DataSet (PieDataSet)
-    // 3) asignar colores
-    // 4) construir PieData y asignarlo al chart
-    // 5) invalidate() para redibujar
     // =====================================================
     //*******Pintar el gráfico
     private fun actualizarPieChart(totalIngresos: Double, totalGastos: Double) {
@@ -497,14 +375,12 @@ class MainActivity : AppCompatActivity(){
         pieChart.invalidate()
     }
 
-
     private fun configurarDialogRegistroAvanzado(){
         val view = layoutInflater.inflate(R.layout.dialog_registro, null)
-        val etConcepto = view.findViewById<android.widget.EditText>(R.id.etConcepto)
-        val etMonto = view.findViewById<android.widget.EditText>(R.id.etMonto)
+        val etConcepto = view.findViewById<EditText>(R.id.etConcepto)
+        val etMonto = view.findViewById<EditText>(R.id.etMonto)
 
-
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle("Nuevo $tipoActual")
             .setView(view)
             .setPositiveButton("Guardar",null)
@@ -513,7 +389,7 @@ class MainActivity : AppCompatActivity(){
 
         // Listener personalizado para validar antes de cerrar el diálogo
         dialog.setOnShowListener {
-            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
 
                 //limpiamos-El "Reinicio" del estado
                 etConcepto.error = null
@@ -537,10 +413,10 @@ class MainActivity : AppCompatActivity(){
                 }
 
                 // Generación de fecha automática
-                val fechaActual = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
-                    .format(java.util.Date())
+                val fechaActual = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+                    .format(Date())
 
-                val nuevoMovimiento = Finanza(
+                val nuevoMovimiento = Movimiento(
                     tipo = tipoActual,
                     concepto = concepto,
                     monto = monto,
@@ -561,12 +437,9 @@ class MainActivity : AppCompatActivity(){
 
     }
 
-
     fun refrescarListaActual(){
-        if(tipoActual == "Ingreso") mostrarIngresos() else mostrarGastos()
+        if(tipoActual == "Ingreso") mostrarMovimientos("Ingreso") else mostrarMovimientos("Gasto")
     }
-
-
 
     private fun saveToPrefs() {
         val balanceText = findViewById<TextView>(R.id.txt_total_balance).text.toString()
@@ -575,22 +448,18 @@ class MainActivity : AppCompatActivity(){
             .putString(PREF_TIPO_ACTUAL, tipoActual)
             .apply()
     }
-
     private fun loadFromPrefs() {
         tipoActual = prefs.getString(PREF_TIPO_ACTUAL, "Ingreso") ?: "Ingreso"
     }
-
 
     private companion object {
 
         //Bundle keys(rotación)
         const val  KEY_TIPO_ACTUAL = "KEY_TIPO_ACTUAL"
 
-
         //SharedPreferences
         const val  PREFS_NAME = "finanzas_prefs"
         const val  PREF_TIPO_ACTUAL = "pref_tipo_actual"
     }
-
 
 }//cierra clase

@@ -1,4 +1,4 @@
-package com.example.finanzaspersonales_cendi
+package com.example.finanzaspersonales_cendi.data.local
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
